@@ -14,6 +14,7 @@
 #include "server.h"
 #include "connection.h"
 #include "array.h"
+#include "hash.h"
 
 void stdin_read_callback(int fd, void *arg)
 {
@@ -30,7 +31,7 @@ void timer_read_callback(int fd, void *arg)
 	server_manager *manager = (server_manager *)arg;
 	event *ev = fd_to_event(manager, fd);
 	if (ev)
-		event_remove(ev);
+		event_free(ev);
 }
 
 void daytime_accept_callback(connection *conn)
@@ -62,15 +63,13 @@ void echo_read_callback(connection *conn)
 
 int main()
 {
-	server_manager *manager = create_server_manager();
+	server_manager *manager = server_manager_create();
 	if (manager == NULL)
 		return -1;
 
 	/* 1.监听标准输入 */
-	event *ev = create_event(manager, 0, EVENT_READ, stdin_read_callback, NULL, NULL, NULL);
-	if (ev == NULL)
-		return -1;
-	event_add(ev);
+	event *ev_stdin = event_create(manager, 0, EVENT_READ, stdin_read_callback, NULL, NULL, NULL);
+	event_start(ev_stdin);
 
 	/* 2.监听定时器 */
 	int timer_fd = timerfd_create(CLOCK_MONOTONIC, TFD_NONBLOCK | TFD_CLOEXEC);
@@ -79,20 +78,45 @@ int main()
 	howlong.it_value.tv_sec = 1;
 	howlong.it_interval.tv_sec = 1;
 	timerfd_settime(timer_fd, 0, &howlong, NULL);
-	event *timer_ev = create_event(manager, timer_fd, EVENT_READ,
+	event *timer_ev = event_create(manager, timer_fd, EVENT_READ,
 								timer_read_callback, manager, NULL, NULL);
-	event_add(timer_ev);
+	event_start(timer_ev);
 
 	/* 3.监听端口2015,模拟daytime服务器 */
-	inet_address *ls_addr_1 = create_addr("any", 2015);
-	server *daytime_server = create_server(manager, ls_addr_1, NULL, daytime_accept_callback);
+	inet_address ls_addr_1 = addr_create("any", 2015);
+	server *daytime_server = server_create(manager, ls_addr_1, NULL, daytime_accept_callback);
 
 	/* 4.监听端口2016,模拟echo服务器 */
-	inet_address *ls_addr_2 = create_addr("any", 2016);
-	server *echo_server = create_server(manager, ls_addr_2, echo_read_callback, NULL);
+	inet_address ls_addr_2 = addr_create("any", 2016);
+	server *echo_server = server_create(manager, ls_addr_2, echo_read_callback, NULL);
 
 	server_manager_run(manager);
+
+
+#if 0
+	hash_table *ht = hash_table_create(100);
+	hash_table_insert(ht, 1, NULL);
+	hash_table_insert(ht, 11, NULL);
+	hash_table_insert(ht, 101, NULL);
+	hash_table_insert(ht, 2, NULL);
+	hash_table_insert(ht, 123, NULL);
 	
+	hash_node *node = hash_table_find(ht, 123);
+	if (node)
+		printf("find %d\n", node->key);
+	
+	node = hash_table_find(ht, 100);
+	if (node)
+		printf("find %d\n", node->key);
+
+	hash_table_remove(ht, 101);
+	hash_table_remove(ht, 101);
+	hash_table_remove(ht, 1);
+
+	hash_table_print(ht);
+#endif
+
+
 	return 0;
 }
 

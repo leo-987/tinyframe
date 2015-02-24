@@ -1,55 +1,113 @@
+#include <stdlib.h>
+#include <stdio.h>
+
 #include "hash.h"
+#include "debug.h"
 
-/* 散列表,参考<<数据结构与算法分析>> */
-
-HashTable InitializeTable(int TableSize)
+/* 创建hash table */
+hash_table *hash_table_create(unsigned int size)
 {
-    HashTable ht;
-    int i;
+    hash_table *ht;
 
-    ht = malloc(sizeof(struct HashTbl));
+    ht = malloc(sizeof(hash_table));
     if (ht == NULL)
-        return -1;
-
-    ht->TableSize = TableSize;
-    ht->TheLists = calloc(TableSize, sizeof(Position));
-    if (ht->TheLists == NULL)
-        return -1;
-
+	{
+		debug_ret("file: %s, line: %d", __FILE__, __LINE__);
+		return NULL;
+	}
+	
+    ht->size = size;
+    ht->buckets = calloc(size, sizeof(hash_node *));
+    if (ht->buckets == NULL)
+	{
+		debug_ret("file: %s, line: %d", __FILE__, __LINE__);
+		free(ht);
+		return NULL;
+	}
     return ht;
 }
 
-// 散列函数
-int Hash(ElementType Key, int TableSize)
+/* 散列函数 */
+int hash(int key, unsigned int size)
 {
-    return Key % TableSize;
+    return key % size;
 }
 
-Position Find(HashTable H, ElementType Key)
+hash_node *hash_table_find(hash_table *ht, int key)
 {
-    Position p;
+    hash_node *p;
 
-    p = H->TheLists[Hash(Key, H->TableSize)];
-    while (p != NULL && p->Element != Key)  // 这里只能对数值型key进行比较
-        p = p->Next;
+    p = ht->buckets[hash(key, ht->size)];
+    while (p != NULL && p->key!= key)
+        p = p->next;
 
     return p;
 }
 
-// 键值不允许重复
-void Insert(HashTable H, ElementType Key)
+/* 插入元素到hash table */
+int hash_table_insert(hash_table *ht, int key, void *value)
 {
-    Position *p;    // 如果不使用这个双重指针，那么需要计算多次散列函数
-    Position tmp;
+	hash_node **p;
+	hash_node *new;
 
-    if (Find(H, Key) == NULL)    // 元素不存在
-    {   // 插入链表头部
-        p = &(H->TheLists[Hash(Key, H->TableSize)]);
-        tmp = malloc(sizeof(struct ListNode));
-        tmp->Element = Key;
-        tmp->Next = *p;
-        *p = tmp;
+	if (hash_table_find(ht, key) == NULL)
+    {
+    	/* 元素不存在,插入链表头部 */
+        p = &(ht->buckets[hash(key, ht->size)]);
+        new = malloc(sizeof(hash_node));
+        new->key= key;
+		new->value = value;
+        new->next = *p;
+        *p = new;
+		return 0;
     }
+	return -1;
+}
+
+/* 从hash_table中移除key对应的元素,被移出的元素不销毁
+ * 返回值:
+ * 		0  : 删除成功
+ * 		-1 : 删除失败,被删除元素不在hash_table中,
+ */
+int hash_table_remove(hash_table *ht, int key)
+{
+	hash_node **p;
+	hash_node *pp;
+	
+	p = &(ht->buckets[hash(key, ht->size)]);
+	pp = *p;
+	if (pp == NULL)
+		return -1;
+	
+	if (pp->key == key)
+	{
+		*p = pp->next;
+		return 0;
+	}
+	
+	while (pp->next != NULL && pp->next->key != key)
+        pp = pp->next;
+	if (pp->next != NULL)
+	{
+		/* find it */
+		pp->next = pp->next->next;
+		return 0;
+	}
+	return -1;
+}
+
+/* 打印hash table中的所有key */
+void hash_table_print(hash_table *ht)
+{
+	hash_node *p;
+	int i;
+	for (i = 0; i < ht->size; i++)
+	{
+		printf("bucket %d : ", i);
+		for (p = ht->buckets[i]; p != NULL; p = p->next)
+			printf("%d ", p->key);
+		printf("\n");
+	}
 }
 
 /*

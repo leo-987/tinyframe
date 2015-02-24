@@ -11,7 +11,7 @@
 #define EVENT_WRITE EPOLLOUT
 
 /* 读写事件回调函数指针 */
-typedef void (*event_cb_pt)(int fd, void *arg);
+typedef void (*event_callback_pt)(int fd, void *arg);
 
 typedef struct event_t event;
 typedef struct server_manager_t server_manager;
@@ -20,7 +20,8 @@ typedef struct event_t {
 	int fd;
 	int events;				/* 关注的事件 */
 	int actives;			/* 就绪事件集合 */
-	int is_listening;		/* 1表示该事件在epoll机制中 */
+	int is_listening;		/* 1表示该事件处于监听状态中,且在server_manager的events散列表中 */
+	int is_active;			/* 1表示该事件就绪但未被处理,且在server_manager的actives散列表中 */
 	struct timeval time;	/* 事件发生时间 */
 	connection *conn;		/* 事件对应的连接 */
 
@@ -38,20 +39,24 @@ typedef struct event_t {
 	/* 事件回调函数入口 */
 	void (*event_handler)(event *ev);
 
-	/* 读写回调函数 */
-	void (*event_read_cb)(int fd, void *arg);
+	/* 可读回调 */
+	event_callback_pt event_read_handler;
 	void *r_arg;
-	void (*event_write_cb)(int fd, void *arg);
-	void *w_arg;	
-	void (*event_close_cb)(int fd, void *arg);
+
+	/* 可写回调 */
+	event_callback_pt event_write_handler;
+	void *w_arg;
+
+	/* 关闭回调 */
+	event_callback_pt event_close_handler;
 	void *c_arg;
 	
 }event;
 
-event* create_event(server_manager *manager, int fd, short events,
-					event_cb_pt read_cb, void *r_arg, event_cb_pt write_cb, void *w_arg);
-int event_add(event *ev);
-void event_remove(event *ev);
+event* event_create(server_manager *manager, int fd, short events,
+	event_callback_pt read_cb, void *r_arg, event_callback_pt write_cb, void *w_arg);
+int event_start(event *ev);
+void event_stop(event *ev);
 void event_free(event *ev);
 event *fd_to_event(server_manager *manager, int fd);
 

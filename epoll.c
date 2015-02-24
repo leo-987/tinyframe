@@ -7,45 +7,66 @@
 #include "epoll.h"
 #include "event.h"
 #include "debug.h"
+#include "hash.h"
 
 #define MAX_EVENTS 32	/* 根据Libevent */
 
-static int epoll_add(epoller *ep, event *e)
+static void epoll_add(epoller *ep, event *e)
 {
 	struct epoll_event ev;
 	
 	ev.events = e->events;
-	ev.data.fd = e->fd;
+	//ev.data.fd = e->fd;
 	ev.data.ptr = e;
+	
 	if (epoll_ctl(ep->fd, EPOLL_CTL_ADD, e->fd, &ev) == -1)
 	{
 		/* 出错返回-1,errno被设置 */
 		debug_sys("file: %s, line: %d", __FILE__, __LINE__);
 	}
-	return 0;
 }
 
-static int epoll_del(epoller *ep, event *e)
+static void epoll_del(epoller *ep, event *e)
 {
 	/* 判断事件e是否在epoll中,防止重复删除同一事件 */
 	if (e->is_listening == 0)
-		return 0;
+		return;
 	
 	struct epoll_event ev;
 	ev.events = e->events;
+	
 	if (epoll_ctl(ep->fd, EPOLL_CTL_DEL, e->fd, &ev) == -1)
 	{
 		/* 出错返回-1,errno被设置 */
 		debug_sys("file: %s, line: %d", __FILE__, __LINE__);
 	}
-	return 0;
 }
 
-/* 等待事件就绪 */
+static void epoll_modify(epoller *ep, event *e)
+{
+	struct epoll_event ev;
+	
+	ev.events = e->events;
+	//ev.data.fd = e->fd;
+	ev.data.ptr = e;
+	
+	if (epoll_ctl(ep->fd, EPOLL_CTL_MOD, e->fd, &ev) == -1)
+	{
+		/* 出错返回-1,errno被设置 */
+		debug_sys("file: %s, line: %d", __FILE__, __LINE__);
+	}
+}
+
+/* 等待事件就绪,事件触发机制的最底层 */
 static int epoll_dispatch(server_manager *manager)
 {
+	int i;
+	event *ev;
 	struct epoll_event events[MAX_EVENTS];
-	
+
+	/* 就绪事件在epoll内部排队,当就绪事件大于MAX_EVENTS时
+	 * 剩余就绪事件可在下次epoll_wait时获得
+	 */
 	int nfds = epoll_wait(manager->epoller->fd, events, MAX_EVENTS, -1);
 	if (nfds == 0)
 	{
@@ -56,7 +77,7 @@ static int epoll_dispatch(server_manager *manager)
 		if (errno != EINTR)
 			debug_sys("file: %s, line: %d", __FILE__, __LINE__);
 		
-		/* errno == EINTR,直接返回,在server_run函数中再次进入 */
+		/* errno == EINTR,直接返回,在server_manager_run函数中再次进入 */
 		return 0;
 	}
 
@@ -64,13 +85,15 @@ static int epoll_dispatch(server_manager *manager)
 	struct timeval tv;
   	gettimeofday(&tv, NULL);
 	
-	/* 将就绪事件保存在server_manager的actives链表开头 */
-	int i;
 	for (i = 0; i < nfds; i++)
 	{
-		event *ev = events[i].data.ptr;
+		/* 取出event对象 */
+		ev = events[i].data.ptr;
 		ev->time = tv;
+		ev->is_active = 1;
 		ev->actives = events[i].events;
+		
+		/* 将就绪事件保存在server_manager中 */
 		ev->active_next = manager->actives;
 		ev->active_pre = NULL;
 		if (ev->active_next)
@@ -80,22 +103,8 @@ static int epoll_dispatch(server_manager *manager)
 	return nfds;
 }
 
-/* 修改epoll中的事件 */
-static int epoll_modify(epoller *ep, event *e)
-{
-	struct epoll_event ev;
-	ev.events = e->events;
-	ev.data.fd = e->fd;
-	ev.data.ptr = e;
-	if (epoll_ctl(ep->fd, EPOLL_CTL_MOD, e->fd, &ev) == -1)
-	{
-		/* 出错返回-1,errno被设置 */
-		debug_sys("file: %s, line: %d", __FILE__, __LINE__);
-	}
-	return 0;
-}
-
-epoller* create_epoller()
+/* 创建封装的事件驱动机制 */
+epoller *epoller_create()
 {
 	epoller *ep = malloc(sizeof(epoller));
 	if (ep == NULL)
@@ -104,7 +113,7 @@ epoller* create_epoller()
 		return NULL;
 	}
 
-	/* 参数参考Libevent */
+	/* must be greater than zero */
 	ep->fd = epoll_create(32000);
 	if (ep->fd == -1)
 	{
@@ -115,18 +124,18 @@ epoller* create_epoller()
 	}
 
 	ep->name = "epoll";
-	ep->add_event = epoll_add;
-	ep->mod_event = epoll_modify;
-	ep->del_event = epoll_del;
-	ep->dispatch = epoll_dispatch;
+	ep->event_add = epoll_add;
+	ep->event_mod = epoll_modify;
+	ep->event_del = epoll_del;
+	ep->event_dispatch = epoll_dispatch;
 
 	return ep;
 }
 
+/* 销毁封装的事件驱动机制 */
 void epoller_free(epoller *ep)
 {
 	close(ep->fd);
 	free(ep);
-	return;
 }
 

@@ -18,15 +18,18 @@ typedef struct connection_t {
 	inet_address server_addr;
 	inet_address client_addr;
 	
-	connection *prev;
-	connection *next;
+	//connection *prev;
+	//connection *next;
 
+	/* 连接对应的输入buffer */
 	array *input_buffer;
+
+	/* 连接对应的输出buffer */
 	array *output_buffer;
 	
 }connection;
 
-connection *create_connection(int conn_fd, server *server);
+connection *connection_create(int conn_fd, server *server);
 void connection_free(connection *conn);
 
 #endif

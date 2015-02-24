@@ -8,10 +8,8 @@
 #include "connection.h"
 #include "debug.h"
 
-
-
-/* 创建server_manager基础对象 */
-server_manager *create_server_manager()
+/* 创建server_manager对象 */
+server_manager *server_manager_create()
 {
 	server_manager *manager = malloc(sizeof(server_manager));
 	if (manager == NULL)
@@ -19,9 +17,8 @@ server_manager *create_server_manager()
 		debug_ret("file: %s, line: %d", __FILE__, __LINE__);
 		return NULL;
 	}
-
-	/* 创建epoller对象 */
-	manager->epoller = create_epoller();
+	
+	manager->epoller = epoller_create();
 	if (manager->epoller == NULL)
 	{
 		debug_ret("file: %s, line: %d", __FILE__, __LINE__);
@@ -29,24 +26,29 @@ server_manager *create_server_manager()
 		return NULL;
 	}
 
-	manager->events = NULL;
+	//manager->events = NULL;
+
+	manager->events = hash_table_create(100);
 	manager->actives = NULL;
 	
 	return manager;
 }
 
-/* 开始循环监听事件,事件创建并加入完毕后调用 */
+/* 开始循环监听事件 */
 void server_manager_run(server_manager *manager)
 {
 	int i;
+	event *ev;
+	
 	while (1)
 	{
 		/* epoll_dispatch() */
-		int nfds = manager->epoller->dispatch(manager);
+		int nfds = manager->epoller->event_dispatch(manager);
+		
+		ev = manager->actives;
+		
 		for (i = 0; i < nfds; i++)
 		{
-			event *ev = manager->actives;
-
 			/* 分发事件 */
 			ev->event_handler(ev);
 
@@ -55,9 +57,10 @@ void server_manager_run(server_manager *manager)
 			if (ev->active_next)
 				ev->active_next->active_pre = NULL;
 			
-			//ev->actives = 0;
 			ev->active_next = NULL;
 			ev->active_pre = NULL;
+			ev->actives = 0;
+			ev->is_active = 0;
 		}
 	}
 }

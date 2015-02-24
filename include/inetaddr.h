@@ -8,8 +8,7 @@ typedef struct inet_addr_t {
 	struct sockaddr_in addr;
 }inet_address;
 
-
-inet_address *create_addr(const char *ip, int port);
+inet_address addr_create(const char *ip, int port);
 
 #endif
 

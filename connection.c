@@ -12,7 +12,7 @@ static void event_readable_callback(int fd, void *arg)
 {
 	connection *conn = (connection *)arg;
 	char buf[65536];
-	debug_msg("file: %s, line: %d", __FILE__, __LINE__);
+
 	/* read应该在这一层进行 */
 	ssize_t	n = read(fd, buf, 65536);
 	if (n > 0)
@@ -68,7 +68,7 @@ static void event_writable_callback(int fd, void *arg)
 	}
 }
 
-connection *create_connection(int conn_fd, server *server)
+connection *connection_create(int connfd, server *server)
 {
 	connection *conn = malloc(sizeof(connection));
 	if (conn == NULL)
@@ -76,6 +76,10 @@ connection *create_connection(int conn_fd, server *server)
 		debug_ret("file: %s, line: %d", __FILE__, __LINE__);
 		return NULL;
 	}
+
+	conn->fd = connfd;
+	conn->server = server;
+	conn->client_addr = server->listener->client_addr;
 
 	/* 默认大小参考muduo */
 	conn->input_buffer = array_create(1024, sizeof(char));
@@ -85,6 +89,7 @@ connection *create_connection(int conn_fd, server *server)
 		free(conn);
 		return NULL;
 	}
+	
 	conn->output_buffer = array_create(1024, sizeof(char));
 	if (conn->output_buffer == NULL)
 	{
@@ -94,7 +99,7 @@ connection *create_connection(int conn_fd, server *server)
 		return NULL;
 	}
 
-	conn->conn_event = create_event(server->manager, conn_fd, EPOLLIN | EPOLLPRI,
+	conn->conn_event = event_create(server->manager, connfd, EPOLLIN | EPOLLPRI,
 				event_readable_callback, conn, event_writable_callback, conn);
 	if (conn->conn_event == NULL)
 	{
@@ -107,27 +112,27 @@ connection *create_connection(int conn_fd, server *server)
 
 	/* 跟TCP相关的event才需要对应的connection */
 	conn->conn_event->conn = conn;
-	event_add(conn->conn_event);
-	
-	conn->fd = conn_fd;
-	conn->server = server;
-	conn->client_addr = server->listener->client_addr;
-	
+	event_start(conn->conn_event);
+
+	/* 获得服务器socket地址 */
 	socklen_t addr_len = sizeof(conn->server_addr.addr);
-	int ret = getsockname(conn_fd, (struct sockaddr *)&conn->server_addr.addr, &addr_len);
+	int ret = getsockname(connfd, (struct sockaddr *)&conn->server_addr.addr, &addr_len);
 	if (ret < 0)
 	{
-		/* 终止进程 */
 		debug_sys("file: %s, line: %d", __FILE__, __LINE__);
 	}
 
-	/* 将新建立的连接放入server->connections链表中 */
+	/* 将新建立的连接放入server->connections中统一管理 */
+#if 0
 	conn->next = server->connections;
 	conn->prev = NULL;
 	server->connections = conn;
 	if (conn->next)
 		conn->next->prev = conn;
-	
+#endif
+
+	hash_table_insert(server->connections, conn->fd, conn);
+
 	return conn;
 }
 
@@ -135,7 +140,8 @@ connection *create_connection(int conn_fd, server *server)
 void connection_remove(connection *conn)
 {
 	server *server = conn->server;
-	
+
+#if 0
 	if (conn->prev == NULL)
 	{
 		server->connections = conn->next;
@@ -150,19 +156,24 @@ void connection_remove(connection *conn)
 	}
 	conn->prev = NULL;
 	conn->next = NULL;
+#endif
+
+	hash_table_remove(server->connections, conn->fd);
 }
 
 void connection_free(connection *conn)
 {
 	connection_remove(conn);
 	event_free(conn->conn_event);
+	array_free(conn->input_buffer);
+	array_free(conn->output_buffer);
 	free(conn);
 }
 
 void connection_send(connection *conn, char *buf, size_t len)
 {
 	array *output_buffer = conn->output_buffer;
-	ssize_t n_write;
+	ssize_t n_write = 0;
 	if (output_buffer->nelts == 0)
 	{
 		/* 输出buffer中没有数据,直接write */

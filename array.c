@@ -38,13 +38,6 @@ array *array_create(unsigned int n, size_t size)
     return a;
 }
 
-/* 销毁动态数组,与ngx_array_create配对使用 */
-void array_free(array *a)
-{
-    free(a->elts);
-	free(a);
-}
-
 /* 添加一个元素,返回新元素地址 */
 void *array_push(array *a)
 {
@@ -117,7 +110,21 @@ int array_copy(array *from, char *to, int len)
 	memcpy(to, from->elts, n);
 	
 	/* 输入buffer清空 */
-	from->nelts = 0;
+	array_clear(from);
+	
 	return n;
+}
+
+/* 清空array */
+void array_clear(array *a)
+{
+	a->nelts = 0;
+}
+
+/* 销毁动态数组,与ngx_array_create配对使用 */
+void array_free(array *a)
+{
+    free(a->elts);
+	free(a);
 }
 
