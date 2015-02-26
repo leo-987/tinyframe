@@ -7,9 +7,6 @@
 #include "servermanager.h"
 #include "connection.h"
 
-#define EVENT_READ EPOLLIN
-#define EVENT_WRITE EPOLLOUT
-
 /* 读写事件回调函数指针 */
 typedef void (*event_callback_pt)(int fd, void *arg);
 

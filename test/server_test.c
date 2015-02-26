@@ -36,30 +36,21 @@ void timer_read_callback(int fd, void *arg)
 
 void daytime_accept_callback(connection *conn)
 {
-	char buff[65536];
+	char buff[50];
 	time_t ticks = time(NULL);
-	//snprintf(buff, sizeof(buff), "%.24s\r\n", ctime(&ticks));
-
-	/* 测试: 发送大量数据 */
-	int i;
-	for (i = 0; i < 65536; i++)
-		buff[i] = 'x';
-	buff[i - 3] = 'w';
-	buff[i - 2] = '\r';
-	buff[i - 1] = '\n';
+	snprintf(buff, sizeof(buff), "%.24s\r\n", ctime(&ticks));
 	connection_send(conn, buff, strlen(buff));
-
-	/* 这里不能主动关闭连接,因为send有可能没有完全发送 */
-	//connection_free(conn);
+	connection_free(conn);
 }
 
 void echo_read_callback(connection *conn)
 {
-	char *buf = malloc(conn->input_buffer->nelts);
-	int n = array_copy(conn->input_buffer, buf, conn->input_buffer->nelts);
-	connection_send(conn, buf, n);
-	free(buf);
+	connection_send(conn, conn->input_buffer->elts, conn->input_buffer->nelts);
+
+	/* 使用完input_buffer后要清空 */
+	array_clear(conn->input_buffer);
 }
+
 
 int main()
 {
@@ -68,7 +59,7 @@ int main()
 		return -1;
 
 	/* 1.监听标准输入 */
-	event *ev_stdin = event_create(manager, 0, EVENT_READ, stdin_read_callback, NULL, NULL, NULL);
+	event *ev_stdin = event_create(manager, 0, EPOLLIN, stdin_read_callback, NULL, NULL, NULL);
 	event_start(ev_stdin);
 
 	/* 2.监听定时器 */
@@ -78,22 +69,23 @@ int main()
 	howlong.it_value.tv_sec = 1;
 	howlong.it_interval.tv_sec = 1;
 	timerfd_settime(timer_fd, 0, &howlong, NULL);
-	event *timer_ev = event_create(manager, timer_fd, EVENT_READ,
+	event *timer_ev = event_create(manager, timer_fd, EPOLLIN,
 								timer_read_callback, manager, NULL, NULL);
 	event_start(timer_ev);
 
-	/* 3.监听端口2015,模拟daytime服务器 */
-	inet_address ls_addr_1 = addr_create("any", 2015);
+	/* 3.监听端口10001,模拟daytime服务器 */
+	inet_address ls_addr_1 = addr_create("any", 10001);
 	server *daytime_server = server_create(manager, ls_addr_1, NULL, daytime_accept_callback);
 
-	/* 4.监听端口2016,模拟echo服务器 */
-	inet_address ls_addr_2 = addr_create("any", 2016);
+	/* 4.监听端口10002,模拟echo服务器 */
+	inet_address ls_addr_2 = addr_create("any", 10002);
 	server *echo_server = server_create(manager, ls_addr_2, echo_read_callback, NULL);
 
 	server_manager_run(manager);
 
 
 #if 0
+	/* hash table测试代码 */
 	hash_table *ht = hash_table_create(100);
 	hash_table_insert(ht, 1, NULL);
 	hash_table_insert(ht, 11, NULL);

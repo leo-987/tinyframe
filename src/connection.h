@@ -31,6 +31,7 @@ typedef struct connection_t {
 
 connection *connection_create(int conn_fd, server *server);
 void connection_free(connection *conn);
+void connection_send(connection *conn, char *buf, size_t len);
 
 #endif
 

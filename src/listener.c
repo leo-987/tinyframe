@@ -4,6 +4,7 @@
 #include <arpa/inet.h>
 #include <unistd.h>
 #include <errno.h>
+#include <fcntl.h>
 
 #include "listener.h"
 #include "inetaddr.h"
@@ -19,8 +20,8 @@ static void event_accept_callback(int listenfd, void *arg)
 	listener *ls = (listener *)arg;
 	socklen_t clilen = sizeof(ls->client_addr.addr);
 
-	int connfd = accept4(listenfd, (struct sockaddr *)&ls->client_addr.addr,
-						&clilen, SOCK_NONBLOCK | SOCK_CLOEXEC);
+	int connfd = accept(listenfd, (struct sockaddr *)&ls->client_addr.addr,
+						&clilen);
 	if (connfd < 0)
 	{
 		/* 出错处理,参考muduo和<<UNP>>16.6 */
@@ -55,6 +56,8 @@ static void event_accept_callback(int listenfd, void *arg)
 			inet_ntop(AF_INET, &ls->client_addr.addr.sin_addr, buff, sizeof(buff)),
 			ntohs(ls->client_addr.addr.sin_port));
 
+	fcntl(connfd, F_SETFL, fcntl(connfd, F_GETFL) | O_NONBLOCK);
+
 	ls->accept_callback(connfd, ls);	/* accept_callback() */
 }
 
@@ -84,6 +87,9 @@ listener *listener_create(server *server, accept_callback_pt accept_cb, inet_add
 		free(ls);
 		return NULL;
 	}
+
+	int opt = 1;
+	setsockopt(listen_fd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt));
 
 	int ret = bind(listen_fd, (struct sockaddr *)&ls_addr.addr, sizeof(ls_addr.addr));
 	if (ret < 0)

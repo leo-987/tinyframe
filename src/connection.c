@@ -2,6 +2,7 @@
 #include <unistd.h>
 #include <errno.h>
 #include <string.h>
+#include <sys/ioctl.h>
 
 #include "connection.h"
 #include "servermanager.h"
@@ -11,19 +12,28 @@
 static void event_readable_callback(int fd, void *arg)
 {
 	connection *conn = (connection *)arg;
-	char buf[65536];
+	int size;
 
-	/* read应该在这一层进行 */
-	ssize_t	n = read(fd, buf, 65536);
+	/* 获得socket可读字节数,方便input_buffer扩容 */
+	if (ioctl(fd, FIONREAD, &size) < 0)
+		debug_sys("file: %s, line: %d", __FILE__, __LINE__);	/* exit */
+	debug_msg("%d bytes can read", size);
+
+	char *p = array_push_n(conn->input_buffer, size);
+	if (p == NULL)
+		debug_quit("file: %s, line: %d", __FILE__, __LINE__);	/* exit */
+
+	ssize_t	n = read(fd, p, size);
+	debug_msg("read %d bytes", n);
+	
 	if (n > 0)
 	{
 		if (conn->server->readable_callback)
-		{
-			/* 用户设定了写回调才push数据,防止input_buffer被撑爆 */
-			char *p = array_push_n(conn->input_buffer, n);
-			strncpy(p, buf, n);
-			
 			conn->server->readable_callback(conn);
+		else
+		{
+			/* 用户不处理读到的数据,则丢弃 */
+			conn->input_buffer->nelts -= n;
 		}
 	}
 	else if (n == 0)
@@ -50,13 +60,13 @@ static void event_writable_callback(int fd, void *arg)
 		{
 			/* 全部发送出去,清空buffer */
 			write_event_disable(conn->conn_event);
-			buffer->nelts = 0;
+			array_clear(conn->output_buffer);
 		}
 		else
 		{
-			/* 部分发送,未发送部分搬移到buffer开头 */
-			memcpy(buffer->elts, buffer->elts + n_write, buffer->nelts * buffer->size);
+			/* 未完全发送,剩余部分搬移到output_buffer开头 */
 			buffer->nelts -= n_write;
+			memcpy(buffer->elts, buffer->elts + n_write, buffer->nelts * buffer->size);
 		}
 	}
 	else if (n_write < 0)
@@ -161,6 +171,7 @@ void connection_remove(connection *conn)
 	hash_table_remove(server->connections, conn->fd);
 }
 
+/* 关闭并释放一个connection */
 void connection_free(connection *conn)
 {
 	connection_remove(conn);
@@ -170,10 +181,16 @@ void connection_free(connection *conn)
 	free(conn);
 }
 
+/* 发送数据
+ * @conn : 发送对应的连接
+ * @buf : 待发送数据
+ * @len : 待发送数据长度
+ */
 void connection_send(connection *conn, char *buf, size_t len)
 {
 	array *output_buffer = conn->output_buffer;
 	ssize_t n_write = 0;
+	
 	if (output_buffer->nelts == 0)
 	{
 		/* 输出buffer中没有数据,直接write */
@@ -189,11 +206,11 @@ void connection_send(connection *conn, char *buf, size_t len)
 	}
 	if (n_write < len)
 	{
-		/* 不足计数 */
+		/* 未发送部分存入output_buffer */
 		char *p = array_push_n(output_buffer, len - n_write);
 		strncpy(p, buf + n_write, len - n_write);
 
-		/* socket缓冲区可写后回调函数event_writable_callback() */
+		/* socket缓冲区可写后调用函数event_writable_callback() */
 		write_event_enable(conn->conn_event);
 
 		debug_msg("file: %s, line: %d", __FILE__, __LINE__);
