@@ -25,9 +25,10 @@ void stdin_read_callback(int fd, void *arg)
 	fputs(buff, stdout);
 }
 
-void timeout_callback(void *arg)
+void timeout_callback(timer *t, void *arg)
 {
 	printf("time out!\n");
+	timer_remove(t);
 }
 
 void daytime_accept_callback(connection *conn)
@@ -47,6 +48,13 @@ void echo_read_callback(connection *conn)
 	array_clear(conn->input_buffer);
 }
 
+void concurrency_read_callback(connection *conn)
+{
+	connection_send(conn, conn->input_buffer->elts, conn->input_buffer->nelts);
+
+	/* 使用完input_buffer后要清空 */
+	array_clear(conn->input_buffer);
+}
 
 int main()
 {
@@ -77,6 +85,10 @@ int main()
 	inet_address ls_addr_2 = addr_create("any", 10002);
 	server *echo_server = server_create(manager, ls_addr_2, echo_read_callback, NULL);
 
+	/* 5.监听端口10003,并发测试 */
+	inet_address ls_addr_3 = addr_create("any", 10003);
+	server *concurrency_server = server_create(manager, ls_addr_3, concurrency_read_callback, NULL);
+	
 	server_manager_run(manager);
 #endif
 

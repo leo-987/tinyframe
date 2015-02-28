@@ -42,7 +42,7 @@ server_manager *server_manager_create()
 	return manager;
 }
 
-/* 开始循环监听事件 */
+/* 开始监听事件 */
 void server_manager_run(server_manager *manager)
 {
 	int i;
@@ -56,15 +56,15 @@ void server_manager_run(server_manager *manager)
 		
 		if (nfds == 0)
 		{
-			/* timeout */
+			/* 处理超时事件 */
 			timer *next;
 			for (t = manager->timeout_timers; t != NULL; t = next)
 			{
-				next = t->next;
-			
 				if (t->timeout_handler&& t->option != TIMER_OPT_NONE)
-					t->timeout_handler(t->arg);
+					t->timeout_handler(t, t->arg);
 
+				next = t->next;
+				
 				manager->timeout_timers = t->next;
 				if (t->next)
 					t->next->prev = NULL;
@@ -91,11 +91,11 @@ void server_manager_run(server_manager *manager)
 			}
 			continue;
 		}
-		
+
+		/* 处理I/O事件 */
 		ev = manager->actives;
 		for (i = 0; i < nfds; i++)
 		{
-			/* 分发事件 */
 			ev->event_handler(ev);
 
 			/* 将处理完的事件从actives队列中移除 */

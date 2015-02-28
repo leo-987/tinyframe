@@ -8,6 +8,7 @@ enum timer_options {
 };
 
 typedef struct timer_t timer;
+typedef void (*timeout_callback_pt)(timer *t, void *arg);
 
 typedef struct timer_t {
 	struct timeval timeout_abs;		/* 超时绝对时间 */
@@ -15,7 +16,7 @@ typedef struct timer_t {
 	enum timer_options option;		/* 是否重复触发 */
 
 	/* 超时回调函数 */
-	void (*timeout_handler)(void *arg);
+	timeout_callback_pt timeout_handler;
 	void *arg;
 
 	timer *prev;
@@ -23,11 +24,12 @@ typedef struct timer_t {
 	
 }timer;
 
-timer *timer_new(struct timeval timeout, void (*timeout_handler)(void *arg),
+timer *timer_new(struct timeval timeout, timeout_callback_pt timeout_handler,
 					void *arg, enum timer_options option);
 void timer_reset(timer *t);
-
 long tv_to_msec(const struct timeval *tv);
+void timer_add(server_manager *manager, timer *t);
+void timer_remove(timer *t);
 
 #endif
 

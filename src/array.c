@@ -99,7 +99,7 @@ void *array_push_n(array *a, unsigned int n)
 }
 
 /* 将from中的载荷复制到数组to中,不自动在末尾追加'\0' */
-int array_copy(array *from, char *to, int len)
+int array_retrieve(array *from, char *to, int len)
 {
 	int n;
 	if (from->nelts * from->size < len)

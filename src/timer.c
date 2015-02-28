@@ -13,7 +13,7 @@
  * @arg : 超时回调函数的参数
  * @option : timer类型
  */
-timer *timer_new(struct timeval timeout, void (*timeout_handler)(void *arg),
+timer *timer_new(struct timeval timeout, timeout_callback_pt timeout_handler,
 					void *arg, enum timer_options option)
 {
 	timer *t = malloc(sizeof(timer));
@@ -40,9 +40,11 @@ timer *timer_new(struct timeval timeout, void (*timeout_handler)(void *arg),
 /* 将timer加入到server_manager管理 */
 void timer_add(server_manager *manager, timer *t)
 {
-	heap_insert(manager->timers, t);
+	if (t->option != TIMER_OPT_NONE)
+		heap_insert(manager->timers, t);
 }
 
+/* 停止timer超时管理 */
 void timer_remove(timer *t)
 {
 	t->option= TIMER_OPT_NONE;

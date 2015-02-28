@@ -1,6 +1,6 @@
 CC = gcc
 CFLAGS = -I ../src -g -O2 -D_REENTRANT -Wall
-LIBS = ../src/lib.a
+LIBS = ../src/lib.a -lpthread
 
 all: server_test client_test
 

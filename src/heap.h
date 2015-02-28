@@ -1,7 +1,7 @@
 #ifndef __HEAP_H__
 #define __HEAP_H__
 
-/* 存放event的小根堆,参考Libevent */
+/* 存放timer的小根堆,参考Libevent */
 
 #include "timer.h"
 

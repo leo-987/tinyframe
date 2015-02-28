@@ -125,6 +125,7 @@ listener *listener_create(server *server, accept_callback_pt accept_cb, inet_add
 	return ls;
 }
 
+/* 释放一个listener对象 */
 void listener_free(listener *ls)
 {
 	event_free(ls->ls_event);

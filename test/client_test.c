@@ -10,6 +10,7 @@
 #include <signal.h>
 #include <errno.h>
 #include <unistd.h>
+#include <pthread.h>
 
 #define MAXLINE 65536
 
@@ -20,13 +21,16 @@ static char	read_buf[MAXLINE];
 static ssize_t my_read(int fd, char *ptr)
 {
 
-	if (read_cnt <= 0) {
+	if (read_cnt <= 0)
+	{
 again:
-		if ( (read_cnt = read(fd, read_buf, sizeof(read_buf))) < 0) {
+		if ( (read_cnt = read(fd, read_buf, sizeof(read_buf))) < 0)
+		{
 			if (errno == EINTR)
 				goto again;
 			return(-1);
-		} else if (read_cnt == 0)
+		}
+		else if (read_cnt == 0)
 			return(0);
 		read_ptr = read_buf;
 	}
@@ -42,15 +46,20 @@ ssize_t readline(int fd, void *vptr, size_t maxlen)
 	char	c, *ptr;
 
 	ptr = vptr;
-	for (n = 1; n < maxlen; n++) {
-		if ( (rc = my_read(fd, &c)) == 1) {
+	for (n = 1; n < maxlen; n++)
+	{
+		if ( (rc = my_read(fd, &c)) == 1)
+		{
 			*ptr++ = c;
 			if (c == '\n')
-				break;	/* newline is stored, like fgets() */
-		} else if (rc == 0) {
+				break;		/* newline is stored, like fgets() */
+		}
+		else if (rc == 0)
+		{
 			*ptr = 0;
 			return(n - 1);	/* EOF, n - 1 bytes were read */
-		} else
+		}
+		else
 			return(-1);		/* error, errno set by read() */
 	}
 
@@ -67,7 +76,7 @@ ssize_t readlinebuf(void **vptrptr)
 
 ssize_t Readline(int fd, void *ptr, size_t maxlen)
 {
-	ssize_t		n;
+	ssize_t	n;
 
 	if ( (n = readline(fd, ptr, maxlen)) < 0)
 	{
@@ -86,7 +95,8 @@ ssize_t writen(int fd, const void *vptr, size_t n)
 
 	ptr = vptr;
 	nleft = n;
-	while (nleft > 0) {
+	while (nleft > 0)
+	{
 		if ( (nwritten = write(fd, ptr, nleft)) <= 0) {
 			if (nwritten < 0 && errno == EINTR)
 				nwritten = 0;		/* and call write() again */
@@ -109,69 +119,117 @@ void Writen(int fd, void *ptr, size_t nbytes)
 	}
 }
 
-void Fputs(const char *ptr, FILE *stream)
+void str_cli(FILE *fp, int sockfd)
 {
-	if (fputs(ptr, stream) == EOF)
+	char buffer[MAXLINE];
+	
+	while (fgets(buffer, MAXLINE, fp) != NULL)
 	{
-		printf("fputs error");
-		exit(0);
+		Writen(sockfd, buffer, strlen(buffer));
+
+		/* 收到FIN,返回0 */
+		Readline(sockfd, buffer, MAXLINE);
+
+		fputs(buffer, stdout);
 	}
 }
 
-void str_cli(FILE *fp, int sockfd)
+int	sockfds[50];
+pthread_t tid[50];
+#define BUFF_LEN 10
+
+void *doit(void *arg)
 {
-	char sendline[MAXLINE], recvline[MAXLINE];
-	int ret;
+	int sockfd = sockfds[(int)arg];
+	char ch = (int)arg + 'A';
+	char buffer[BUFF_LEN];
+	int i;
+	int n;
 	
-	while (fgets(sendline, MAXLINE, fp) != NULL)
+	for (i = 0; i < BUFF_LEN; i++)
+		buffer[i] = ch;
+	buffer[BUFF_LEN - 1] = '\n';
+	
+	while (1)
 	{
-		Writen(sockfd, sendline, strlen(sendline));
-
-		/* 收到FIN,返回0 */
-		ret = Readline(sockfd, recvline, MAXLINE);
-
-		Fputs(recvline, stdout);
+		Writen(sockfd, buffer, strlen(buffer));
+		n = read(sockfd, buffer, BUFF_LEN);
+		write(1, buffer, n);
+		sleep(1);
 	}
 }
 
 int main(int argc, char **argv)
 {
 	int	sockfd;
+	
 	char recvline[MAXLINE + 1];
 	int n;
-	
+	int port;
 	struct sockaddr_in servaddr;
+	
 	if (argc != 3)
 	{
 		printf("usage: client <IP> <port>\n");
 		return -1;
 	}
 
-	int port = atoi(argv[2]);
-
-	sockfd = socket(AF_INET, SOCK_STREAM, 0);
-	
-	bzero(&servaddr, sizeof(servaddr));
-	servaddr.sin_family = AF_INET;
-	servaddr.sin_port = htons(port);
-	inet_pton(AF_INET, argv[1], &servaddr.sin_addr);
-	connect(sockfd, (struct sockaddr *) &servaddr, sizeof(servaddr));
+	port = atoi(argv[2]);
 	
 	if (port == 10001)
 	{
+		/* daytime */
+		sockfd = socket(AF_INET, SOCK_STREAM, 0);
+	
+		bzero(&servaddr, sizeof(servaddr));
+		servaddr.sin_family = AF_INET;
+		servaddr.sin_port = htons(port);
+		inet_pton(AF_INET, argv[1], &servaddr.sin_addr);
+		connect(sockfd, (struct sockaddr *) &servaddr, sizeof(servaddr));
+	
 		while ( (n = read(sockfd, recvline, MAXLINE)) > 0)
 		{
 			recvline[n] = 0;
 			fputs(recvline, stdout);
 		}
+
+		close(sockfd);
 	}
 	else if (port == 10002)
 	{
-		str_cli(stdin, sockfd);
-	}
-
-	close(sockfd);
+		/* echo */
+		sockfd = socket(AF_INET, SOCK_STREAM, 0);
 	
+		bzero(&servaddr, sizeof(servaddr));
+		servaddr.sin_family = AF_INET;
+		servaddr.sin_port = htons(port);
+		inet_pton(AF_INET, argv[1], &servaddr.sin_addr);
+		connect(sockfd, (struct sockaddr *) &servaddr, sizeof(servaddr));
+		
+		str_cli(stdin, sockfd);
+
+		close(sockfd);
+	}
+	else if (port == 10003)
+	{
+		/* 并发测试 */
+		int i;
+		for (i = 0; i < 10; i++)
+		{
+			sockfds[i] = socket(AF_INET, SOCK_STREAM, 0);
+
+			bzero(&servaddr, sizeof(servaddr));
+			servaddr.sin_family = AF_INET;
+			servaddr.sin_port = htons(port);
+			inet_pton(AF_INET, argv[1], &servaddr.sin_addr);
+
+			connect(sockfds[i], (struct sockaddr *) &servaddr, sizeof(servaddr));
+
+			pthread_create(&tid[i], NULL, doit, (void *)i);
+		}
+		pthread_join(tid[0], NULL);
+	}
+	printf("test");
 	return 0;
 }
 

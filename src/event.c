@@ -187,7 +187,7 @@ void write_event_enable(event *ev)
 	event_modify(ev);
 }
 
-/* ¹Ø±Õ¼àÌýÐ´ÊÂ¼þ */
+/* Í£Ö¹¼àÌýÐ´ÊÂ¼þ */
 void write_event_disable(event *ev)
 {
 	ev->events &= ~EPOLLOUT;
