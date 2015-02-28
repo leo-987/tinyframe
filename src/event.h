@@ -23,8 +23,8 @@ typedef struct event_t {
 	connection *conn;		/* 事件对应的连接 */
 
 	/* 等待事件链表 */
-	event *listen_next;
-	event *listen_pre;
+	//event *listen_next;
+	//event *listen_pre;
 
 	/* 就绪事件链表 */
 	event *active_next;

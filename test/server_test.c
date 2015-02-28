@@ -15,6 +15,8 @@
 #include "connection.h"
 #include "array.h"
 #include "hash.h"
+#include "heap.h"
+#include "timer.h"
 
 void stdin_read_callback(int fd, void *arg)
 {
@@ -23,15 +25,9 @@ void stdin_read_callback(int fd, void *arg)
 	fputs(buff, stdout);
 }
 
-void timer_read_callback(int fd, void *arg)
+void timeout_callback(void *arg)
 {
-	char buff[8];
-	read(fd, buff, 8);
 	printf("time out!\n");
-	server_manager *manager = (server_manager *)arg;
-	event *ev = fd_to_event(manager, fd);
-	if (ev)
-		event_free(ev);
 }
 
 void daytime_accept_callback(connection *conn)
@@ -54,24 +50,24 @@ void echo_read_callback(connection *conn)
 
 int main()
 {
+#if 1
 	server_manager *manager = server_manager_create();
-	if (manager == NULL)
-		return -1;
 
 	/* 1.¼àÌı±ê×¼ÊäÈë */
 	event *ev_stdin = event_create(manager, 0, EPOLLIN, stdin_read_callback, NULL, NULL, NULL);
 	event_start(ev_stdin);
 
 	/* 2.¼àÌı¶¨Ê±Æ÷ */
-	int timer_fd = timerfd_create(CLOCK_MONOTONIC, TFD_NONBLOCK | TFD_CLOEXEC);
-	struct itimerspec howlong;
-	bzero(&howlong, sizeof(howlong));
-	howlong.it_value.tv_sec = 1;
-	howlong.it_interval.tv_sec = 1;
-	timerfd_settime(timer_fd, 0, &howlong, NULL);
-	event *timer_ev = event_create(manager, timer_fd, EPOLLIN,
-								timer_read_callback, manager, NULL, NULL);
-	event_start(timer_ev);
+	struct timeval timeout;
+	timeout.tv_sec = 1;
+	timeout.tv_usec = 0;
+	timer *timer1 = timer_new(timeout, timeout_callback, NULL, TIMER_OPT_REPEAT);
+	timer_add(manager, timer1);
+
+	timeout.tv_sec = 2;
+	timeout.tv_usec = 0;
+	timer *timer2 = timer_new(timeout, timeout_callback, NULL, TIMER_OPT_REPEAT);
+	timer_add(manager, timer2);
 
 	/* 3.¼àÌı¶Ë¿Ú10001,Ä£Äâdaytime·şÎñÆ÷ */
 	inet_address ls_addr_1 = addr_create("any", 10001);
@@ -82,7 +78,7 @@ int main()
 	server *echo_server = server_create(manager, ls_addr_2, echo_read_callback, NULL);
 
 	server_manager_run(manager);
-
+#endif
 
 #if 0
 	/* hash table²âÊÔ´úÂë */
@@ -108,6 +104,32 @@ int main()
 	hash_table_print(ht);
 #endif
 
+#if 0
+
+	/* heap²âÊÔ´úÂë */
+	heap *h = heap_create(10);
+	timer t1; t1.timeout_abs.tv_sec = 1;
+	timer t2; t2.timeout_abs.tv_sec = 2;
+	timer t3; t3.timeout_abs.tv_sec = 3;
+	timer t4; t4.timeout_abs.tv_sec = 2;
+	timer t5; t5.timeout_abs.tv_sec = 5;
+	timer t6; t6.timeout_abs.tv_sec = 1;
+
+	heap_insert(h, &t4);
+	heap_insert(h, &t5);
+	heap_insert(h, &t1);
+	heap_insert(h, &t2);
+	heap_insert(h, &t6);
+	heap_insert(h, &t3);
+	
+	printf("Min = %d\n", heap_delete(h)->timeout_abs.tv_sec);
+	printf("Min = %d\n", heap_delete(h)->timeout_abs.tv_sec);
+	printf("Min = %d\n", heap_delete(h)->timeout_abs.tv_sec);
+	printf("Min = %d\n", heap_delete(h)->timeout_abs.tv_sec);
+	printf("Min = %d\n", heap_delete(h)->timeout_abs.tv_sec);
+	printf("Min = %d\n", heap_delete(h)->timeout_abs.tv_sec);
+
+#endif
 
 	return 0;
 }

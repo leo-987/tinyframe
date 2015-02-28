@@ -121,7 +121,7 @@ void array_clear(array *a)
 	a->nelts = 0;
 }
 
-/* 销毁动态数组,与ngx_array_create配对使用 */
+/* 销毁动态数组 */
 void array_free(array *a)
 {
     free(a->elts);

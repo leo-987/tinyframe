@@ -63,14 +63,52 @@ static int epoll_dispatch(server_manager *manager)
 	int i;
 	event *ev;
 	struct epoll_event events[MAX_EVENTS];
+	int timeout = -1;
+	struct timeval now;
+	
+	if (!heap_is_empty(manager->timers))
+	{
+		timer *t = heap_top(manager->timers);
+		struct timeval diff;
+		gettimeofday(&diff, NULL);
+		diff.tv_sec = t->timeout_abs.tv_sec - diff.tv_sec;
+		diff.tv_usec = t->timeout_abs.tv_usec - diff.tv_usec;
+		timeout = tv_to_msec(&diff);
+		
+		if (timeout < 0)
+			timeout = tv_to_msec(&(t->timeout_rel));
+	}
 
 	/* 就绪事件在epoll内部排队,当就绪事件大于MAX_EVENTS时
 	 * 剩余就绪事件可在下次epoll_wait时获得
 	 */
-	int nfds = epoll_wait(manager->epoller->fd, events, MAX_EVENTS, -1);
+	int nfds = epoll_wait(manager->epoller->fd, events, MAX_EVENTS, timeout);
+	
+  	gettimeofday(&now, NULL);
+	
 	if (nfds == 0)
 	{
 		/* timeout */
+
+		timer *t = heap_top(manager->timers);
+		
+		//debug_msg("%d %d", t->timeout_abs.tv_sec, t->timeout_abs.tv_usec);
+		//debug_msg("%d %d", now.tv_sec, now.tv_usec);
+
+		/* 超时timer全部放入manager->timeout_timers管理 */
+		while (timer_cmp(&now, &t->timeout_abs, >))
+		{
+			t = heap_delete(manager->timers);
+			t->next = manager->timeout_timers;
+			if (t->next)
+				t->next->prev = t;
+			manager->timeout_timers = t;
+
+			if (heap_is_empty(manager->timers))
+				return 0;
+			
+			t = heap_top(manager->timers);
+		}
 	}
 	else if (nfds == -1)
 	{
@@ -80,16 +118,12 @@ static int epoll_dispatch(server_manager *manager)
 		/* errno == EINTR,直接返回,在server_manager_run函数中再次进入 */
 		return 0;
 	}
-
-	/* 记录时间 */
-	struct timeval tv;
-  	gettimeofday(&tv, NULL);
 	
 	for (i = 0; i < nfds; i++)
 	{
 		/* 取出event对象 */
 		ev = events[i].data.ptr;
-		ev->time = tv;
+		ev->time = now;
 		ev->is_active = 1;
 		ev->actives = events[i].events;
 		

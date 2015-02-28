@@ -26,10 +26,18 @@ server_manager *server_manager_create()
 		return NULL;
 	}
 
-	//manager->events = NULL;
+	manager->timers = heap_create(30);
+	if (manager->timers == NULL)
+	{
+		debug_ret("file: %s, line: %d", __FILE__, __LINE__);
+		epoller_free(manager->epoller);
+		free(manager);
+		return NULL;
+	}
 
 	manager->events = hash_table_create(100);
 	manager->actives = NULL;
+	manager->timeout_timers = NULL;
 	
 	return manager;
 }
@@ -39,14 +47,52 @@ void server_manager_run(server_manager *manager)
 {
 	int i;
 	event *ev;
+	timer *t;
 	
 	while (1)
 	{
 		/* epoll_dispatch() */
 		int nfds = manager->epoller->event_dispatch(manager);
 		
-		ev = manager->actives;
+		if (nfds == 0)
+		{
+			/* timeout */
+			timer *next;
+			for (t = manager->timeout_timers; t != NULL; t = next)
+			{
+				next = t->next;
+			
+				if (t->timeout_handler&& t->option != TIMER_OPT_NONE)
+					t->timeout_handler(t->arg);
+
+				manager->timeout_timers = t->next;
+				if (t->next)
+					t->next->prev = NULL;
+				t->next = NULL;
+				t->prev = NULL;
+
+				switch (t->option)
+				{
+					case TIMER_OPT_NONE:
+						debug_msg("timer do NONE");
+						break;
+					case TIMER_OPT_ONCE:
+						debug_msg("timer do ONCE");
+						break;
+					case TIMER_OPT_REPEAT:
+						debug_msg("timer do REPEAT");
+
+						/* 更新时间 */
+						t->timeout_abs.tv_sec += t->timeout_rel.tv_sec;
+						t->timeout_abs.tv_usec += t->timeout_rel.tv_usec;
+						heap_insert(manager->timers, t);
+						break;
+				}
+			}
+			continue;
+		}
 		
+		ev = manager->actives;
 		for (i = 0; i < nfds; i++)
 		{
 			/* 分发事件 */
@@ -63,6 +109,12 @@ void server_manager_run(server_manager *manager)
 			ev->is_active = 0;
 		}
 	}
+}
+
+/* 打印所有正在监听中的文件描述符 */
+void print_running_events(server_manager *manager)
+{
+	hash_table_print(manager->events);
 }
 
 

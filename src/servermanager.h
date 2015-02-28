@@ -7,6 +7,7 @@
 #include "event.h"
 #include "hash.h"
 #include "array.h"
+#include "heap.h"
 
 typedef struct epoller_t epoller;
 
@@ -20,12 +21,20 @@ typedef struct server_manager_t {
 	//event *events;
 	hash_table *events;
 
-	/* 所有就绪事件 */
+	/* 所有就绪事件链表 */
 	event *actives;
+
+	/* 定时器用的小根堆 */
+	heap *timers;
+
+	/* 已超时timer链表 */
+	timer *timeout_timers;
 
 }server_manager;
 
 server_manager *server_manager_create();
 void server_manager_run(server_manager *manager);
+void print_running_events(server_manager *manager);
+
 
 #endif

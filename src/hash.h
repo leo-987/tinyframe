@@ -1,7 +1,7 @@
 #ifndef __HASH_H__
 #define __HASH_H__
 
-/* 散列表,参考<<数据结构与算法分析>>,采用开链法 */
+/* 散列表,采用开链法解决冲突 */
 
 typedef struct hash_node_t hash_node;
 
@@ -12,7 +12,7 @@ typedef struct hash_node_t{
 }hash_node;
 
 typedef struct hash_table_t{
-    int size;		/* 桶个数 */
+    int size;				/* 桶个数 */
     hash_node **buckets;	/* 指针数组,存放不同的桶,桶不能动态增加 */
 }hash_table;
 

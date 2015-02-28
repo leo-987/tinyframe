@@ -110,27 +110,3 @@ void hash_table_print(hash_table *ht)
 	}
 }
 
-/*
-
-int main(void)
-{
-    HashTable table;
-    Position p;
-
-    table = InitializeTable(100);
-
-    Insert(table, 21);
-    Insert(table, 24);
-    Insert(table, 43);
-    Insert(table, 35);
-
-    p = Find(table, 43);
-    if (p != NULL)
-        printf("Find it!\n");
-    else
-        printf("Not found!\n");
-
-    return 0;
-}
-
-*/
