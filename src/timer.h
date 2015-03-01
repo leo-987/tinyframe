@@ -1,6 +1,8 @@
 #ifndef __TIMER_H__
 #define __TIMER_H__
 
+#include "servermanager.h"
+
 enum timer_options {
 	TIMER_OPT_NONE,		/* 超时不处理 */
 	TIMER_OPT_ONCE,		/* 超时处理一次 */

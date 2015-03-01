@@ -10,6 +10,7 @@
 	 ((tvp)->tv_usec cmp (uvp)->tv_usec) :	\
 	 ((tvp)->tv_sec cmp (uvp)->tv_sec))
 
+typedef struct timer_t timer;
 
 typedef struct heap_t {
 	timer **data;

@@ -2,7 +2,6 @@
 #define __EVENTBASE_H__
 
 #include "epoll.h"
-#include "list.h"
 #include "listener.h"
 #include "event.h"
 #include "hash.h"
@@ -10,6 +9,8 @@
 #include "heap.h"
 
 typedef struct epoller_t epoller;
+typedef struct heap_t heap;
+typedef struct timer_t timer;
 
 /* server_manager对象,管理server对象 */
 typedef struct server_manager_t {

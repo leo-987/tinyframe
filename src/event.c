@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <time.h>
 #include <unistd.h>
+#include <signal.h>
 
 #include "event.h"
 #include "debug.h"
@@ -81,6 +82,8 @@ event* event_create(server_manager *manager, int fd, short events,
 
 	ev->event_close_handler = event_close_callback;		/* 关闭处理对用户不可见 */
 	ev->c_arg = ev;
+
+	signal(SIGPIPE, SIG_IGN);
 
 	return ev;
 }

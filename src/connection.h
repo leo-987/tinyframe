@@ -8,6 +8,7 @@
 
 typedef struct connection_t connection;
 typedef struct server_t server;
+typedef struct event_t event;
 
 /* connection层,管理socket对的读写 */
 typedef struct connection_t {
