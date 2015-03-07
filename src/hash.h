@@ -23,7 +23,7 @@ hash_node *hash_table_find(hash_table *ht, int key);
 int hash_table_insert(hash_table *ht, int key, void *value);
 int hash_table_remove(hash_table *ht, int key);
 void hash_table_print(hash_table *ht);
-
+void hash_table_free(hash_table *ht);
 
 #endif
 

@@ -61,6 +61,9 @@ static void event_writable_callback(int fd, void *arg)
 			/* 全部发送出去,清空buffer */
 			write_event_disable(conn->conn_event);
 			array_clear(conn->output_buffer);
+
+			if (conn->closing)
+				connection_free(conn);
 		}
 		else
 		{
@@ -71,7 +74,7 @@ static void event_writable_callback(int fd, void *arg)
 	}
 	else if (n_write < 0)
 	{
-		if (errno != EWOULDBLOCK)
+		if (errno != EWOULDBLOCK && errno != EAGAIN)
 			debug_sys("file: %s, line: %d", __FILE__, __LINE__);
 		else
 			debug_msg("file: %s, line: %d", __FILE__, __LINE__);
@@ -90,7 +93,8 @@ connection *connection_create(int connfd, server *server)
 	conn->fd = connfd;
 	conn->server = server;
 	conn->client_addr = server->listener->client_addr;
-
+	conn->closing = 0;
+	
 	/* 默认大小参考muduo */
 	conn->input_buffer = array_create(1024, sizeof(char));
 	if (conn->input_buffer == NULL)
@@ -200,7 +204,7 @@ void connection_send(connection *conn, char *buf, size_t len)
 			n_write = 0;
 			
 			/* <<UNP>> P341 */
-			if (errno != EWOULDBLOCK)
+			if (errno != EWOULDBLOCK && errno != EAGAIN)
 				debug_sys("file: %s, line: %d", __FILE__, __LINE__);
 		}
 	}

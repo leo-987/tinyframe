@@ -11,6 +11,9 @@
  */
 inet_address addr_create(const char *ip, int port)
 {
+	if (ip == NULL)
+		debug_quit("file: %s, line: %d", __FILE__, __LINE__);
+	
 	inet_address new_addr;
 
 	bzero(&new_addr.addr, sizeof(new_addr.addr));

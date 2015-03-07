@@ -18,12 +18,12 @@ static void event_handler(event *ev)
 	strftime(time_string, sizeof(time_string), "event ready time: %Y-%m-%d %H:%M:%S", ptm);
 	debug_msg("%s", time_string);
 
-	if (ev->actives & (EPOLLERR | EPOLLHUP))
+	if (ev->actives & EPOLLRDHUP)
 	{
 		/* event_close_callback() */
 		ev->event_close_handler(ev->fd, ev->c_arg);
 	}
-	if (ev->actives & (EPOLLIN | EPOLLPRI | EPOLLRDHUP))
+	if (ev->actives & (EPOLLIN | EPOLLPRI))
 	{
 		if (ev->event_read_handler)
 			ev->event_read_handler(ev->fd, ev->r_arg);

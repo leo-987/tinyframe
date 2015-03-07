@@ -27,7 +27,8 @@ typedef struct connection_t {
 
 	/* 连接对应的输出buffer */
 	array *output_buffer;
-	
+
+	int closing;	/* 该连接正在被对端关闭 */
 }connection;
 
 connection *connection_create(int conn_fd, server *server);

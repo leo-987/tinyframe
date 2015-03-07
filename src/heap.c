@@ -31,7 +31,7 @@ heap *heap_create(unsigned int size)
 		return NULL;
 	}
 
-	h->data = malloc(size + 1 * sizeof(timer *));
+	h->data = malloc((size + 1) * sizeof(timer *));
 	h->max_size = size;
 	h->current_size = 0;
 
@@ -53,14 +53,13 @@ void heap_insert(heap *h, timer *t)
 	{
 		timer **data;
 		unsigned int max_size = h->max_size * 2;
-		data = realloc(h->data, max_size * sizeof(timer*));
+		data = (timer **)realloc(h->data, max_size * sizeof(timer *));
 		if (data == NULL)
 		{
 			debug_sys("file: %s, line: %d", __FILE__, __LINE__);
 		}
-
 		h->data = data;
-		h->max_size= max_size;
+		h->max_size= max_size;      
 	}
 	
 	for (index = ++h->current_size; min_heap_elem_greater(h->data[index/2], t); index /= 2)
@@ -109,6 +108,9 @@ timer *heap_delete(heap *h)
 
 timer *heap_top(heap *h)
 {
-	return h->data[1];
+	if (heap_is_empty(h))
+		return NULL;
+	else
+		return h->data[1];
 }
 

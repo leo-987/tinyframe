@@ -38,6 +38,7 @@ server_manager *server_manager_create()
 	manager->events = hash_table_create(100);
 	manager->actives = NULL;
 	manager->timeout_timers = NULL;
+	manager->exiting = 0;
 	
 	return manager;
 }
@@ -49,7 +50,7 @@ void server_manager_run(server_manager *manager)
 	event *ev;
 	timer *t;
 	
-	while (1)
+	while (!manager->exiting)
 	{
 		/* epoll_dispatch() */
 		int nfds = manager->epoller->event_dispatch(manager);
@@ -74,13 +75,13 @@ void server_manager_run(server_manager *manager)
 				switch (t->option)
 				{
 					case TIMER_OPT_NONE:
-						debug_msg("timer do NONE");
+						//debug_msg("timer do NONE");
 						break;
 					case TIMER_OPT_ONCE:
-						debug_msg("timer do ONCE");
+						//debug_msg("timer do ONCE");
 						break;
 					case TIMER_OPT_REPEAT:
-						debug_msg("timer do REPEAT");
+						//debug_msg("timer do REPEAT");
 
 						/* 更新时间 */
 						t->timeout_abs.tv_sec += t->timeout_rel.tv_sec;

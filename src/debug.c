@@ -8,8 +8,8 @@
 
 #define MAXLINE	128
 
-//#define DBG_PRINTF(...)
-#define DBG_PRINTF debug_print
+#define DBG_PRINTF(...)
+//#define DBG_PRINTF debug_print
 
 static void	debug_print(int, const char *, va_list);
 

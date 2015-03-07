@@ -31,6 +31,9 @@ typedef struct server_manager_t {
 	/* 已超时timer链表 */
 	timer *timeout_timers;
 
+	/* 是否退出event loop */
+	int exiting;
+	
 }server_manager;
 
 server_manager *server_manager_create();
