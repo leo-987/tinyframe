@@ -4,7 +4,7 @@ CPPFLAGS += -isystem ../src
 LIBS += lib/libgtest.a
 LIBS += ../src/lib.a
 LIBS += -pthread
-TESTS = hashtable_test array_test inetaddr_test heap_test timer_test event_test
+TESTS = hashtable_test array_test inetaddr_test heap_test timer_test event_test pressure
 
 all: $(TESTS)
 
@@ -26,5 +26,8 @@ timer_test: timer_test.c
 event_test: event_test.c
 		gcc -I ../src -o $@ event_test.c ../src/lib.a
 
+pressure: pressure.c
+		gcc -I ../src -O2 -D_REENTRANT -Wall -o $@ pressure.c ../src/lib.a
+		
 clean:
 	rm -f *.o $(TESTS)

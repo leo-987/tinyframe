@@ -1,7 +1,7 @@
 CC = gcc
 CFLAGS = -I ../src -g -O2 -D_REENTRANT -Wall
 LIBS = ../src/lib.a -lpthread
-EXAMPLE = echo_server echo_client daytime_server daytime_client discard_server pingpong_server pingpong_client pressure
+EXAMPLE = echo_server echo_client daytime_server daytime_client discard_server
 all: $(EXAMPLE)
 
 echo_server: echo_server.o
@@ -18,16 +18,7 @@ daytime_client: daytime_client.o wrap.o
 	
 discard_server: discard_server.o
 		${CC} ${CFLAGS} -o $@ discard_server.o ${LIBS}
-
-pingpong_server: pingpong_server.o
-		${CC} ${CFLAGS} -o $@ pingpong_server.o ${LIBS}
-		
-pingpong_client: pingpong_client.o wrap.o
-		${CC} ${CFLAGS} -o $@ pingpong_client.o wrap.o ${LIBS}
-
-pressure: pressure.o
-		${CC} ${CFLAGS} -o $@ pressure.o ${LIBS}
-		
+	
 clean:
 	rm -f *.o $(EXAMPLE)
 
