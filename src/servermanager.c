@@ -75,14 +75,10 @@ void server_manager_run(server_manager *manager)
 				switch (t->option)
 				{
 					case TIMER_OPT_NONE:
-						//debug_msg("timer do NONE");
 						break;
 					case TIMER_OPT_ONCE:
-						//debug_msg("timer do ONCE");
 						break;
 					case TIMER_OPT_REPEAT:
-						//debug_msg("timer do REPEAT");
-
 						/* 更新时间 */
 						t->timeout_abs.tv_sec += t->timeout_rel.tv_sec;
 						t->timeout_abs.tv_usec += t->timeout_rel.tv_usec;
@@ -93,6 +89,7 @@ void server_manager_run(server_manager *manager)
 			continue;
 		}
 
+#if 0
 		/* 处理I/O事件 */
 		ev = manager->actives;
 		for (i = 0; i < nfds; i++)
@@ -109,6 +106,7 @@ void server_manager_run(server_manager *manager)
 			ev->actives = 0;
 			ev->is_active = 0;
 		}
+#endif
 	}
 }
 

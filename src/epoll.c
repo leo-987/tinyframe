@@ -124,8 +124,10 @@ static int epoll_dispatch(server_manager *manager)
 		/* 取出event对象 */
 		ev = events[i].data.ptr;
 		ev->time = now;
-		ev->is_active = 1;
 		ev->actives = events[i].events;
+
+#if 0
+		ev->is_active = 1;
 		
 		/* 将就绪事件保存在server_manager中 */
 		ev->active_next = manager->actives;
@@ -133,6 +135,11 @@ static int epoll_dispatch(server_manager *manager)
 		if (ev->active_next)
 			ev->active_next->active_pre = ev;
 		manager->actives = ev;
+#else
+		ev->event_handler(ev);
+		ev->actives = 0;
+#endif
+
 	}
 	return nfds;
 }

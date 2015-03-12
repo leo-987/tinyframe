@@ -24,6 +24,7 @@ heap *heap_create(unsigned int size);
 void heap_insert(heap *h, timer *e);
 timer *heap_delete(heap *h);
 timer *heap_top(heap *h);
+void heap_free(heap *h);
 
 
 #endif

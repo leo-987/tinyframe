@@ -114,3 +114,10 @@ timer *heap_top(heap *h)
 		return h->data[1];
 }
 
+void heap_free(heap *h)
+{
+	timer_free(h->data[0]);
+	free(h->data);
+	free(h);
+}
+
