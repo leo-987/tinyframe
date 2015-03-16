@@ -19,16 +19,16 @@ inetaddr_test: inetaddr_test.o
 		${CC} ${CPPFLAGS} -o $@ inetaddr_test.o ${LIBS}
 		
 heap_test: heap_test.c
-		gcc ${CFLAGS} -o $@ heap_test.c ../src/lib.a
+		gcc ${CFLAGS} -o $@ heap_test.c ../src/lib.a -pthread
 		
 timer_test: timer_test.c
-		gcc ${CFLAGS} -o $@ timer_test.c ../src/lib.a
+		gcc ${CFLAGS} -o $@ timer_test.c ../src/lib.a -pthread
 
 event_test: event_test.c
-		gcc ${CFLAGS} -o $@ event_test.c ../src/lib.a
+		gcc ${CFLAGS} -o $@ event_test.c ../src/lib.a -pthread
 
 pressure: pressure.c
-		gcc ${CFLAGS} -o $@ pressure.c ../src/lib.a
+		gcc ${CFLAGS} -o $@ pressure.c ../src/lib.a -pthread
 		
 clean:
 	rm -f *.o $(TESTS)

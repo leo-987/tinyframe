@@ -1,7 +1,6 @@
 #include <stdio.h>
 
 #include "servermanager.h"
-#include "server.h"
 
 void echo_read_handler(connection *conn)
 {
@@ -14,10 +13,8 @@ void echo_read_handler(connection *conn)
 int main()
 {
 	server_manager *manager = server_manager_create();
-
 	inet_address addr = addr_create("any", 7);
-	server *echo_server = server_create(manager, addr, echo_read_handler, NULL);
-	
+	listener *ls = listener_create(manager, addr, echo_read_handler, NULL);
 	server_manager_run(manager);
 
 	return 0;

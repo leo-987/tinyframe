@@ -1,4 +1,4 @@
-OBJS = epoll.o event.o servermanager.o listener.o inetaddr.o server.o connection.o timer.o
+OBJS = epoll.o event.o servermanager.o listener.o inetaddr.o event_loop.o connection.o timer.o
 OBJS += heap.o hash.o array.o
 OBJS += debug.o
 

@@ -1,7 +1,7 @@
 CC = gcc
 CFLAGS = -I ../src -g -O2 -D_REENTRANT -Wall
 LIBS = ../src/lib.a -lpthread
-EXAMPLE = echo_server echo_client daytime_server daytime_client discard_server
+EXAMPLE = daytime_server daytime_client echo_server echo_client
 all: $(EXAMPLE)
 
 echo_server: echo_server.o

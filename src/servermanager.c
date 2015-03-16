@@ -2,15 +2,27 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
+#include <pthread.h>
 
 #include "servermanager.h"
 #include "inetaddr.h"
 #include "connection.h"
 #include "debug.h"
+#include "event_loop.h"
+#include "config.h"
 
-/* 创建server_manager对象 */
+void *spawn_thread(void *arg)
+{
+	int i = (int)arg;
+	
+	loops[i] = event_loop_create();
+	event_loop_run(loops[i]);
+}
+
 server_manager *server_manager_create()
 {
+	int i;
+	pthread_t tid;
 	server_manager *manager = malloc(sizeof(server_manager));
 	if (manager == NULL)
 	{
@@ -18,8 +30,8 @@ server_manager *server_manager_create()
 		return NULL;
 	}
 	
-	manager->epoller = epoller_create();
-	if (manager->epoller == NULL)
+	manager->epoll_fd= epoller_create();
+	if (manager->epoll_fd == -1)
 	{
 		debug_ret("file: %s, line: %d", __FILE__, __LINE__);
 		free(manager);
@@ -30,90 +42,130 @@ server_manager *server_manager_create()
 	if (manager->timers == NULL)
 	{
 		debug_ret("file: %s, line: %d", __FILE__, __LINE__);
-		epoller_free(manager->epoller);
+		epoller_free(manager->epoll_fd);
 		free(manager);
 		return NULL;
 	}
 
-	manager->events = hash_table_create(100);
-	manager->actives = NULL;
-	manager->timeout_timers = NULL;
-	manager->exiting = 0;
+	for (i = 0; i < MAX_LOOP; i++)
+	{
+		pthread_create(&tid, NULL, spawn_thread, (void *)i);
+	}
 	
 	return manager;
 }
 
-/* 开始监听事件 */
-void server_manager_run(server_manager *manager)
+int calc_timeout(server_manager *manager)
 {
-	int i;
-	event *ev;
+	int timeout = -1;
+	struct timeval diff;
 	timer *t;
+
+	t = heap_top(manager->timers);
+	if (t == NULL)
+		return timeout;
 	
-	while (!manager->exiting)
+	gettimeofday(&diff, NULL);
+	diff.tv_sec = t->timeout_abs.tv_sec - diff.tv_sec;
+	diff.tv_usec = t->timeout_abs.tv_usec - diff.tv_usec;
+	timeout = tv_to_msec(&diff);
+	
+	if (timeout < 0)
+		timeout = tv_to_msec(&(t->timeout_rel));
+	
+	return timeout;
+}
+
+void process_timer_event(server_manager *manager, struct timeval trigger_time)
+{
+	timer *t = heap_top(manager->timers);
+	timer *next;
+	
+	//debug_msg("%d %d", t->timeout_abs.tv_sec, t->timeout_abs.tv_usec);
+	//debug_msg("%d %d", now.tv_sec, now.tv_usec);
+
+	if (!timer_cmp(&trigger_time, &t->timeout_abs, >))
+		return;
+
+	/* 超时timer全部放入manager->timeout_timers管理 */
+	while (timer_cmp(&trigger_time, &t->timeout_abs, >))
 	{
-		/* epoll_dispatch() */
-		int nfds = manager->epoller->event_dispatch(manager);
-		
-		if (nfds == 0)
-		{
-			/* 处理超时事件 */
-			timer *next;
-			for (t = manager->timeout_timers; t != NULL; t = next)
-			{
-				if (t->timeout_handler&& t->option != TIMER_OPT_NONE)
-					t->timeout_handler(t, t->arg);
-
-				next = t->next;
-				
-				manager->timeout_timers = t->next;
-				if (t->next)
-					t->next->prev = NULL;
-				t->next = NULL;
-				t->prev = NULL;
-
-				switch (t->option)
-				{
-					case TIMER_OPT_NONE:
-						break;
-					case TIMER_OPT_ONCE:
-						break;
-					case TIMER_OPT_REPEAT:
-						/* 更新时间 */
-						t->timeout_abs.tv_sec += t->timeout_rel.tv_sec;
-						t->timeout_abs.tv_usec += t->timeout_rel.tv_usec;
-						heap_insert(manager->timers, t);
-						break;
-				}
-			}
-			continue;
-		}
+		t = heap_delete(manager->timers);
 
 #if 0
-		/* 处理I/O事件 */
-		ev = manager->actives;
-		for (i = 0; i < nfds; i++)
-		{
-			ev->event_handler(ev);
-
-			/* 将处理完的事件从actives队列中移除 */
-			manager->actives = ev->active_next;
-			if (ev->active_next)
-				ev->active_next->active_pre = NULL;
-			
-			ev->active_next = NULL;
-			ev->active_pre = NULL;
-			ev->actives = 0;
-			ev->is_active = 0;
-		}
+		t->next = manager->timeout_timers;
+		if (t->next)
+			t->next->prev = t;
+		manager->timeout_timers = t;
 #endif
+
+		if (t->timeout_handler&& t->option != TIMER_OPT_NONE)
+			t->timeout_handler(t, t->arg);
+
+		switch (t->option)
+		{
+			case TIMER_OPT_NONE:
+				break;
+			case TIMER_OPT_ONCE:
+				break;
+			case TIMER_OPT_REPEAT:
+				/* 更新时间 */
+				t->timeout_abs.tv_sec += t->timeout_rel.tv_sec;
+				t->timeout_abs.tv_usec += t->timeout_rel.tv_usec;
+				heap_insert(manager->timers, t);
+				break;
+		}
+
+		t = heap_top(manager->timers);
+		if (t == NULL)
+			break;
+	}
+
+#if 0
+	for (t = manager->timeout_timers; t != NULL; t = next)
+	{
+		if (t->timeout_handler&& t->option != TIMER_OPT_NONE)
+			t->timeout_handler(t, t->arg);
+
+		next = t->next;
+		
+		manager->timeout_timers = t->next;
+		if (t->next)
+			t->next->prev = NULL;
+		t->next = NULL;
+		t->prev = NULL;
+
+		switch (t->option)
+		{
+			case TIMER_OPT_NONE:
+				break;
+			case TIMER_OPT_ONCE:
+				break;
+			case TIMER_OPT_REPEAT:
+				/* 更新时间 */
+				t->timeout_abs.tv_sec += t->timeout_rel.tv_sec;
+				t->timeout_abs.tv_usec += t->timeout_rel.tv_usec;
+				heap_insert(manager->timers, t);
+				break;
+		}
+	}
+#endif
+}
+
+void server_manager_run(server_manager *manager)
+{
+	int timeout = -1;
+	struct timeval trigger_time;
+	
+	while (1)
+	{
+		timeout = calc_timeout(manager);
+		trigger_time = epoller_dispatch(manager->epoll_fd, timeout);
+
+		if (timeout == -1)
+			continue;
+		
+		process_timer_event(manager, trigger_time);
 	}
 }
-
-/* 打印所有正在监听中的文件描述符 */
-void print_running_events(server_manager *manager)
-{
-	hash_table_print(manager->events);
-}
-
 

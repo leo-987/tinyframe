@@ -7,34 +7,30 @@
 #include "event.h"
 #include "server.h"
 #include "inetaddr.h"
+#include "servermanager.h"
 
 typedef struct listener_t listener;
-typedef struct server_t server;
 typedef struct event_t event;
+typedef struct connection_t connection;
+typedef struct server_manager_t server_manager;
 
-typedef void (*accept_callback_pt)(int connfd, listener *ls);
+typedef void (*connection_callback_pt)(connection *conn);
 
-/* listener层,由server对象管理,负责监听端口,用户不可见 */
-typedef struct listener_t {
-
-	/* listener所属的event_base */
-	server *server;
+struct listener_t {
 
 	/* 监听套接字地址 */
 	inet_address listen_addr;
-	
-	/* 客户端地址,该地址应该迅速传给connection管理 */
-	inet_address client_addr;	
 
 	/* 监听事件 */
 	event *ls_event;
 
-	/* 新连接到来时的回调 */
-	accept_callback_pt accept_callback;
-}listener;
+	connection_callback_pt new_connection_callback;
+	connection_callback_pt readable_callback;
+};
 
 
-listener *listener_create(server *srv, accept_callback_pt callback, inet_address ls_addr);
+listener *listener_create(server_manager *manager, inet_address ls_addr,
+						  connection_callback_pt read_cb, connection_callback_pt new_conn_cb);
 void listener_free(listener *ls);
 
 #endif

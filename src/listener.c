@@ -5,80 +5,83 @@
 #include <unistd.h>
 #include <errno.h>
 #include <fcntl.h>
+#include <pthread.h>
 
 #include "listener.h"
 #include "inetaddr.h"
 #include "event.h"
 #include "debug.h"
+#include "config.h"
 
-/* 新连接事件发生时的回调函数
- * @listenfd : 监听套接字描述符
- * @arg : 接收新连接的listener对象
- */
-static void event_accept_callback(int listenfd, void *arg)
+static void event_accept_callback(int listenfd, event *ev, void *arg)
 {
 	listener *ls = (listener *)arg;
-	socklen_t clilen = sizeof(ls->client_addr.addr);
-
-	int connfd = accept(listenfd, (struct sockaddr *)&ls->client_addr.addr,
-						&clilen);
+	inet_address client_addr;
+	socklen_t clilen = sizeof(client_addr.addr);
+	int ret;
+	int connfd;
+	static int i;
+	
+	connfd = accept(listenfd, (struct sockaddr *)&client_addr.addr,	&clilen);
 	if (connfd < 0)
 	{
-		/* 出错处理,参考muduo和<<UNP>>16.6 */
 		debug_ret("file: %s, line: %d", __FILE__, __LINE__);
+		
 		int save = errno;
-	    switch (save)
-	    {
-			case EAGAIN:
-			case ECONNABORTED:
-			case EINTR:
-			case EPROTO:
-			case EPERM:
-			case EMFILE:
-				return;
-			case EBADF:
-			case EFAULT:
-			case EINVAL:
-			case ENFILE:
-			case ENOBUFS:
-			case ENOMEM:
-			case ENOTSOCK:
-			case EOPNOTSUPP:
-				debug_sys("file: %s, line: %d", __FILE__, __LINE__);
-			default:
-				debug_sys("file: %s, line: %d", __FILE__, __LINE__);
-	    }
+		if (save == EAGAIN || save == ECONNABORTED || save == EINTR
+			|| save == EPROTO || save == EPERM || save == EMFILE)
+		{
+			return;
+		}
+		else
+		{
+			debug_sys("file: %s, line: %d", __FILE__, __LINE__);
+		}
 	}
 
 	/* 打印客户端地址信息 */
-	char buff[50];
-	debug_msg("connection from %s, port %d",
-			inet_ntop(AF_INET, &ls->client_addr.addr.sin_addr, buff, sizeof(buff)),
-			ntohs(ls->client_addr.addr.sin_port));
+	//char buff[50];
+	//debug_msg("connection from %s, port %d",
+	//		inet_ntop(AF_INET, &client_addr.addr.sin_addr, buff, sizeof(buff)),
+	//		ntohs(client_addr.addr.sin_port));
 
 	fcntl(connfd, F_SETFL, fcntl(connfd, F_GETFL) | O_NONBLOCK);
 
-	ls->accept_callback(connfd, ls);	/* accept_callback() */
+	/* epoll是线程安全的 */
+	if (i == MAX_LOOP)
+		i = 0;
+	
+	connection *conn = connection_create(loops[i], connfd, ls->readable_callback);
+	if (conn == NULL)
+	{
+		debug_quit("file: %s, line: %d", __FILE__, __LINE__);
+	}
+
+	i++;
+	
+	/* 用户回调函数 */
+	if (ls->new_connection_callback)
+		ls->new_connection_callback(conn);
+
 }
 
-/* 创建一个listener监听对象
- * @server : 新生成listener所属的server
- * @callback : 新连接到来时调用的回调函数
- * @ls_addr : 监听的TCP地址
- */
-listener *listener_create(server *server, accept_callback_pt accept_cb, inet_address ls_addr)
+listener *listener_create(server_manager *manager, inet_address ls_addr,
+						  connection_callback_pt read_cb, connection_callback_pt new_conn_cb)
 {
-	listener *ls = malloc(sizeof(listener));
+	int ret;
+	listener *ls;
+	
+	ls = malloc(sizeof(listener));
 	if (ls == NULL)
 	{
 		debug_ret("file: %s, line: %d", __FILE__, __LINE__);
 		return NULL;
 	}
 	
-	ls->server = server;
-	ls->accept_callback = accept_cb;
 	ls->listen_addr = ls_addr;
-	
+	ls->readable_callback = read_cb;
+	ls->new_connection_callback = new_conn_cb;
+
 	/* 创建非阻塞套接字 */
 	int listen_fd = socket(AF_INET, SOCK_STREAM | SOCK_NONBLOCK | SOCK_CLOEXEC, 0);
 	if (listen_fd < 0)
@@ -91,7 +94,7 @@ listener *listener_create(server *server, accept_callback_pt accept_cb, inet_add
 	int opt = 1;
 	setsockopt(listen_fd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt));
 
-	int ret = bind(listen_fd, (struct sockaddr *)&ls_addr.addr, sizeof(ls_addr.addr));
+	ret = bind(listen_fd, (struct sockaddr *)&ls_addr.addr, sizeof(ls_addr.addr));
 	if (ret < 0)
 	{
 		debug_ret("file: %s, line: %d", __FILE__, __LINE__);
@@ -110,8 +113,8 @@ listener *listener_create(server *server, accept_callback_pt accept_cb, inet_add
 		return NULL;
 	}
 
-	ls->ls_event = event_create(server->manager, listen_fd, EPOLLIN | EPOLLPRI,
-									event_accept_callback, ls, NULL, NULL);
+	ls->ls_event = event_create(listen_fd, EPOLLIN | EPOLLPRI,
+								event_accept_callback, ls, NULL, NULL);
 	if (ls->ls_event == NULL)
 	{
 		debug_ret("file: %s, line: %d", __FILE__, __LINE__);
@@ -120,15 +123,18 @@ listener *listener_create(server *server, accept_callback_pt accept_cb, inet_add
 		return NULL;
 	}
 	
+	accept_event_add(manager, ls->ls_event);
 	event_start(ls->ls_event);
 
 	return ls;
 }
 
-/* 释放一个listener对象 */
 void listener_free(listener *ls)
 {
-	event_free(ls->ls_event);
-	free(ls);
+	if (ls != NULL)
+	{
+		event_free(ls->ls_event);
+		free(ls);
+	}
 }
 

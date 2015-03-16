@@ -1,7 +1,6 @@
 #include <stdio.h>
 
 #include "servermanager.h"
-#include "server.h"
 
 void request_handler(connection *conn)
 {
@@ -22,14 +21,8 @@ void request_handler(connection *conn)
 int main()
 {
 	server_manager *manager = server_manager_create();
-
-	/* 监听2016端口 */
 	inet_address addr = addr_create("any", 2016);
-
-	/* socket可读时调用request_handler函数 */
-	server *server = server_create(manager, addr, request_handler, NULL);
-
-	/* 开始监听 */
+	listener *ls = listener_create(manager, addr, request_handler, NULL);
 	server_manager_run(manager);
 
 	return 0;

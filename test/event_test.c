@@ -2,19 +2,17 @@
 #include <sys/timerfd.h>
 #include <string.h>
 
-#include "servermanager.h"
+#include "event_loop.h"
 #include "event.h"
 
-server_manager *g_manager;
-
-void stdin_read_handler(int fd, void *arg)
+void stdin_read_handler(int fd, event *ev, void *arg)
 {
 	char buff[1024];
 	fgets(buff, 1024, stdin);
 	fputs(buff, stdout);
 }
 
-void stdout_write_handler(int fd, void *arg)
+void stdout_write_handler(int fd, event *ev, void *arg)
 {
 	static int cnt = 0;
 
@@ -23,14 +21,12 @@ void stdout_write_handler(int fd, void *arg)
 	cnt++;
 	if (cnt == 5)
 	{
-		event *ev = fd_to_event(g_manager, fd);
-		if (ev != NULL)
-			event_stop(ev);
+		event_stop(ev);
 		printf("stdout event stop!\n");
 	}
 }
 
-void timerfd_read_handler(int fd, void *arg)
+void timerfd_read_handler(int fd, event *ev, void *arg)
 {
 	static int cnt = 0;
 	char buff[8];
@@ -41,22 +37,21 @@ void timerfd_read_handler(int fd, void *arg)
 	cnt++;
 	if (cnt == 5)
 	{
-		event *ev = fd_to_event(g_manager, fd);
-		if (ev != NULL)
-			event_stop(ev);
+		event_stop(ev);
 		printf("timerfd event stop!\n");
 	}
 }
 
 int main()
 {
-	server_manager *manager = server_manager_create();
-	g_manager = manager;
+	event_loop *loop = event_loop_create();
 	
-	event *ev_stdin = event_create(manager, 0, EPOLLIN, stdin_read_handler, NULL, NULL, NULL);
+	event *ev_stdin = event_create(0, EPOLLIN, stdin_read_handler, NULL, NULL, NULL);
+	io_event_add(loop, ev_stdin);
 	event_start(ev_stdin);
 	
-	event *ev_stdout = event_create(manager, 1, EPOLLOUT, NULL, NULL, stdout_write_handler, "stdout");
+	event *ev_stdout = event_create(1, EPOLLOUT, NULL, NULL, stdout_write_handler, "stdout");
+	io_event_add(loop, ev_stdout);
 	event_start(ev_stdout);
 
 	int timer_fd = timerfd_create(CLOCK_MONOTONIC, TFD_NONBLOCK | TFD_CLOEXEC);
@@ -65,11 +60,12 @@ int main()
 	howlong.it_value.tv_sec = 1;
 	howlong.it_interval.tv_sec = 1;
 	timerfd_settime(timer_fd, 0, &howlong, NULL);
-	event *ev_timerfd = event_create(manager, timer_fd, EPOLLIN,
+	event *ev_timerfd = event_create(timer_fd, EPOLLIN,
 									timerfd_read_handler, "timerfd", NULL, NULL);
+	io_event_add(loop, ev_timerfd);
 	event_start(ev_timerfd);
 
-	server_manager_run(manager);
+	event_loop_run(loop);
 	
 	return 0;
 }

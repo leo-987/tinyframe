@@ -9,7 +9,7 @@
 #include "event.h"
 #include "debug.h"
 
-static void event_readable_callback(int fd, void *arg)
+static void event_readable_callback(int fd, event *ev, void *arg)
 {
 	connection *conn = (connection *)arg;
 	int size;
@@ -28,8 +28,8 @@ static void event_readable_callback(int fd, void *arg)
 	
 	if (n > 0)
 	{
-		if (conn->server->readable_callback)
-			conn->server->readable_callback(conn);
+		if (conn->readable_callback)
+			conn->readable_callback(conn);
 		else
 		{
 			/* 用户不处理读到的数据,则丢弃 */
@@ -49,7 +49,7 @@ static void event_readable_callback(int fd, void *arg)
 	}
 }
 
-static void event_writable_callback(int fd, void *arg)
+static void event_writable_callback(int fd, event *ev, void *arg)
 {
 	connection *conn = (connection *)arg;
 	array *buffer = conn->output_buffer;
@@ -61,9 +61,6 @@ static void event_writable_callback(int fd, void *arg)
 			/* 全部发送出去,清空buffer */
 			write_event_disable(conn->conn_event);
 			array_clear(conn->output_buffer);
-
-			if (conn->closing)
-				connection_free(conn);
 		}
 		else
 		{
@@ -81,7 +78,7 @@ static void event_writable_callback(int fd, void *arg)
 	}
 }
 
-connection *connection_create(int connfd, server *server)
+connection *connection_create(event_loop *loop, int connfd, connection_callback_pt read_cb)
 {
 	connection *conn = malloc(sizeof(connection));
 	if (conn == NULL)
@@ -91,9 +88,7 @@ connection *connection_create(int connfd, server *server)
 	}
 
 	conn->fd = connfd;
-	conn->server = server;
-	conn->client_addr = server->listener->client_addr;
-	conn->closing = 0;
+	conn->readable_callback = read_cb;
 	
 	/* 默认大小参考muduo */
 	conn->input_buffer = array_create(1024, sizeof(char));
@@ -113,7 +108,7 @@ connection *connection_create(int connfd, server *server)
 		return NULL;
 	}
 
-	conn->conn_event = event_create(server->manager, connfd, EPOLLIN | EPOLLPRI,
+	conn->conn_event = event_create(connfd, EPOLLIN | EPOLLPRI,
 				event_readable_callback, conn, event_writable_callback, conn);
 	if (conn->conn_event == NULL)
 	{
@@ -124,61 +119,27 @@ connection *connection_create(int connfd, server *server)
 		return NULL;
 	}
 
+	io_event_add(loop, conn->conn_event);
+	
 	/* 跟TCP相关的event才需要对应的connection */
 	conn->conn_event->conn = conn;
 	event_start(conn->conn_event);
 
 	/* 获得服务器socket地址 */
+#if 0
 	socklen_t addr_len = sizeof(conn->server_addr.addr);
 	int ret = getsockname(connfd, (struct sockaddr *)&conn->server_addr.addr, &addr_len);
 	if (ret < 0)
 	{
 		debug_sys("file: %s, line: %d", __FILE__, __LINE__);
 	}
-
-	/* 将新建立的连接放入server->connections中统一管理 */
-#if 0
-	conn->next = server->connections;
-	conn->prev = NULL;
-	server->connections = conn;
-	if (conn->next)
-		conn->next->prev = conn;
 #endif
-
-	hash_table_insert(server->connections, conn->fd, conn);
 
 	return conn;
 }
 
-/* 从server中移除一个特定的connection */
-void connection_remove(connection *conn)
-{
-	server *server = conn->server;
-
-#if 0
-	if (conn->prev == NULL)
-	{
-		server->connections = conn->next;
-		if (conn->next != NULL)
-			conn->next->prev = NULL;
-	}
-	else
-	{
-		conn->prev->next = conn->next;
-		if (conn->next != NULL)
-			conn->next->prev = conn->prev;
-	}
-	conn->prev = NULL;
-	conn->next = NULL;
-#endif
-
-	hash_table_remove(server->connections, conn->fd);
-}
-
-/* 关闭并释放一个connection */
 void connection_free(connection *conn)
 {
-	connection_remove(conn);
 	event_free(conn->conn_event);
 	array_free(conn->input_buffer);
 	array_free(conn->output_buffer);
