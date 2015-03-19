@@ -24,8 +24,8 @@ event_loop *event_loop_create()
 		return NULL;
 	}
 	
-	loop->tid = pthread_self();
-	loop->conn_num = 0;
+	//loop->tid = pthread_self();
+	//loop->conn_num = 0;
 	
 	return loop;
 }

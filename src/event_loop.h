@@ -16,10 +16,10 @@ struct event_loop_t {
 	int epoll_fd;
 	
 	/* event_loop对应的线程ID */
-	pthread_t tid;
+	//pthread_t tid;
 
 	/* event_loop管理的连接个数 */
-	int conn_num;
+	//int conn_num;
 };
 
 event_loop *event_loop_create();

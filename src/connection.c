@@ -17,14 +17,14 @@ static void event_readable_callback(int fd, event *ev, void *arg)
 	/* 获得socket可读字节数,方便input_buffer扩容 */
 	if (ioctl(fd, FIONREAD, &size) < 0)
 		debug_sys("file: %s, line: %d", __FILE__, __LINE__);	/* exit */
-	debug_msg("%d bytes can read", size);
+	//debug_msg("%d bytes can read", size);
 
 	char *p = array_push_n(conn->input_buffer, size);
 	if (p == NULL)
 		debug_quit("file: %s, line: %d", __FILE__, __LINE__);	/* exit */
 
 	ssize_t	n = read(fd, p, size);
-	debug_msg("read %d bytes", n);
+	//debug_msg("read %d bytes", n);
 	
 	if (n > 0)
 	{

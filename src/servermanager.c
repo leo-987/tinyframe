@@ -3,6 +3,7 @@
 #include <stdlib.h>
 #include <unistd.h>
 #include <pthread.h>
+#include <signal.h>
 
 #include "servermanager.h"
 #include "inetaddr.h"
@@ -23,7 +24,9 @@ server_manager *server_manager_create()
 {
 	int i;
 	pthread_t tid;
-	server_manager *manager = malloc(sizeof(server_manager));
+	server_manager *manager;
+
+	manager = malloc(sizeof(server_manager));
 	if (manager == NULL)
 	{
 		debug_ret("file: %s, line: %d", __FILE__, __LINE__);
@@ -46,6 +49,8 @@ server_manager *server_manager_create()
 		free(manager);
 		return NULL;
 	}
+
+	signal(SIGPIPE, SIG_IGN);
 
 	for (i = 0; i < MAX_LOOP; i++)
 	{

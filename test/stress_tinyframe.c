@@ -1,3 +1,6 @@
+
+/* HTTP长连接压力测试 */
+
 #include <stdio.h>
 
 #include "servermanager.h"
@@ -22,7 +25,7 @@ int main()
 {
 	server_manager *manager = server_manager_create();
 	inet_address addr = addr_create("any", 2016);
-	listener *ls = listener_create(manager, addr, request_handler, NULL);
+	listener_create(manager, addr, request_handler, NULL);
 	server_manager_run(manager);
 
 	return 0;

@@ -48,6 +48,8 @@ int event_start(event *ev);
 void event_stop(event *ev);
 void event_free(event *ev);
 event *fd_to_event(server_manager *manager, int fd);
+void io_event_add(event_loop *loop, event *ev);
+void accept_event_add(server_manager *manager, event *ev);
 
 void write_event_enable(event *ev);
 void write_event_disable(event *ev);

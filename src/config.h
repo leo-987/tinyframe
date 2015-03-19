@@ -6,6 +6,6 @@
 
 #define gettid() syscall(__NR_gettid)
 
-#define MAX_LOOP 5
+#define MAX_LOOP 4
 
 event_loop *loops[MAX_LOOP];

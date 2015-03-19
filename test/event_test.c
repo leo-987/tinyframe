@@ -1,6 +1,8 @@
 #include <stdio.h>
 #include <sys/timerfd.h>
 #include <string.h>
+#include <unistd.h>
+#include <assert.h>
 
 #include "event_loop.h"
 #include "event.h"
@@ -8,7 +10,7 @@
 void stdin_read_handler(int fd, event *ev, void *arg)
 {
 	char buff[1024];
-	fgets(buff, 1024, stdin);
+	assert(fgets(buff, 1024, stdin) != NULL);
 	fputs(buff, stdout);
 }
 
@@ -31,7 +33,7 @@ void timerfd_read_handler(int fd, event *ev, void *arg)
 	static int cnt = 0;
 	char buff[8];
 	
-	read(fd, buff, 8);
+	assert(read(fd, buff, 8) > 0);
 	printf("%s readable!\n", (char *)arg);
 
 	cnt++;

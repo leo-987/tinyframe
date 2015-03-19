@@ -2,7 +2,6 @@
 #include <stdlib.h>
 #include <time.h>
 #include <unistd.h>
-#include <signal.h>
 
 #include "event.h"
 #include "debug.h"

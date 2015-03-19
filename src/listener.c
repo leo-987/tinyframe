@@ -6,6 +6,7 @@
 #include <errno.h>
 #include <fcntl.h>
 #include <pthread.h>
+#include <netinet/tcp.h>
 
 #include "listener.h"
 #include "inetaddr.h"
@@ -46,6 +47,9 @@ static void event_accept_callback(int listenfd, event *ev, void *arg)
 	//		ntohs(client_addr.addr.sin_port));
 
 	fcntl(connfd, F_SETFL, fcntl(connfd, F_GETFL) | O_NONBLOCK);
+
+	int opt = 1;
+	setsockopt(connfd, IPPROTO_TCP, TCP_NODELAY, &opt, sizeof(opt));
 
 	/* epoll是线程安全的 */
 	if (i == MAX_LOOP)
