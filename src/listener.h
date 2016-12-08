@@ -5,7 +5,6 @@
 #include <sys/socket.h>
 
 #include "event.h"
-#include "server.h"
 #include "inetaddr.h"
 #include "servermanager.h"
 
