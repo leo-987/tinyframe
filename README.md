@@ -58,5 +58,3 @@ Concurrency Level    TinyFrame    Muduo
     5000              9184.61	  9638.34  
 </code></pre>
 ![Alt Text](https://github.com/oyld/tinyframe/raw/master/test/report/2.png)  
-
-
